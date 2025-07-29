@@ -197,9 +197,8 @@ export default function AdminAnnouncements() {
       }
 
       if (editingAnnouncement) {
-        // Note: Update API might need different implementation
-        // For now, we'll use the create API pattern
-        const response = await announcementsAPI.create(formData);
+        // Update existing announcement
+        const response = await announcementsAPI.update(editingAnnouncement.id, formData);
         const updatedAnnouncement: Announcement = {
           id: editingAnnouncement.id,
           title: form.title,
@@ -210,6 +209,7 @@ export default function AdminAnnouncements() {
           likes: editingAnnouncement.likes,
           dislikes: editingAnnouncement.dislikes,
           createdAt: editingAnnouncement.createdAt,
+          updatedAt: new Date().toISOString(),
         };
         
         setAnnouncements((prev) =>
@@ -272,8 +272,21 @@ export default function AdminAnnouncements() {
     setIsCreateDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await announcementsAPI.delete(id);
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      toast({
+        title: "Success",
+        description: "Announcement deleted successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete announcement",
+        variant: "destructive",
+      });
+    }
   };
 
   const filteredAnnouncements = announcements.filter((announcement) => {

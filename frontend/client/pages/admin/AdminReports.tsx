@@ -165,6 +165,7 @@ export default function AdminReports() {
         // Transform API response to match our interface
         const transformedReports = response.data?.map((report: any) => ({
           id: report._id || report.id,
+          name: report.name || `${report.type} Report`,
           type: report.type,
           format: report.format,
           status: report.status,
@@ -173,6 +174,7 @@ export default function AdminReports() {
           downloadUrl: report.downloadUrl,
           fileSize: report.fileSize,
           recordCount: report.recordCount,
+          createdBy: report.createdBy?.name || 'System',
         })) || [];
         setReports(transformedReports);
       } catch (error) {

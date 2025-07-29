@@ -31,6 +31,47 @@ const createComplaint = async (req, res) => {
   }
 };
 
+const createComplaintAnonymous = async (req, res) => {
+  const { type, description, stop, dateTime, latitude, longitude, address, dynamicFields } = req.body;
+  const evidence = req.files ? req.files.map(file => file.path) : [];
+  try {
+    const token = `BRTS${Math.floor(100000 + Math.random() * 900000)}`; // Auto-generate token
+    const complaint = new Complaint({
+      token,
+      type,
+      description,
+      stop,
+      dateTime: dateTime ? new Date(dateTime) : undefined,
+      location: latitude && longitude ? { latitude: parseFloat(latitude), longitude: parseFloat(longitude), address } : undefined,
+      evidence,
+      userId: req.user ? req.user.id : null, // Allow anonymous submissions
+      dynamicFields: dynamicFields ? JSON.parse(dynamicFields) : {},
+      isAnonymous: !req.user,
+    });
+    await complaint.save();
+    
+    // Award submission points only if user is logged in
+    if (req.user) {
+      await awardPoints(req.user.id, require('../config/config').points.submission, 'complaint_submission', complaint._id);
+    }
+    
+    // Notify admin (broadcast or specific)
+    if (global.io) {
+      global.io.emit('newComplaint', { id: complaint._id });
+    }
+    
+    return successResponse(res, { 
+      id: complaint._id, 
+      token: complaint.token, 
+      status: complaint.status, 
+      points: req.user ? require('../config/config').points.submission : 0,
+      message: req.user ? 'Complaint submitted successfully! Points awarded.' : 'Complaint submitted successfully!'
+    });
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
+
 const trackComplaint = async (req, res) => {
   const { token } = req.params;
   try {
@@ -55,6 +96,19 @@ const getUserHistory = async (req, res) => {
     const total = await Complaint.countDocuments(filter);
     const pagination = { page: parseInt(page), limit: parseInt(limit), total, totalPages: Math.ceil(total / limit) };
     return successResponse(res, complaints, '', pagination);
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
+
+const getUserComplaints = async (req, res) => {
+  const { limit = 10 } = req.query;
+  const filter = { userId: req.user.id };
+  try {
+    const complaints = await Complaint.find(filter)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+    return successResponse(res, complaints);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -98,4 +152,4 @@ const approve = async (req, res) => {
   }
 };
 
-module.exports = { createComplaint, trackComplaint, getUserHistory, getAllComplaints, approve };
+module.exports = { createComplaint, createComplaintAnonymous, trackComplaint, getUserHistory, getUserComplaints, getAllComplaints, approve };

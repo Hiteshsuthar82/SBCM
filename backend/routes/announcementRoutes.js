@@ -8,6 +8,8 @@ const { fileUploadLimiter } = require('../middleware/rateLimitMiddleware');
 
 router.post('/', verifyToken, isAdmin, fileUploadLimiter, singleUpload.single('image'), compressFile, announcementValidation, announcementController.createAnnouncement);
 router.get('/', announcementController.getAnnouncements);
+router.put('/:id', verifyToken, isAdmin, fileUploadLimiter, singleUpload.single('image'), compressFile, announcementValidation, announcementController.updateAnnouncement);
+router.delete('/:id', verifyToken, isAdmin, announcementController.deleteAnnouncement);
 router.post('/:id/like', verifyToken, announcementController.likeAnnouncement);
 
 module.exports = router;

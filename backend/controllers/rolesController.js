@@ -1,5 +1,6 @@
 const Role = require('../models/Role');
 const Admin = require('../models/Admin');
+const ActionHistory = require('../models/ActionHistory');
 const { successResponse, errorResponse } = require('../utils/responseUtil');
 
 const getRoles = async (req, res) => {
@@ -43,6 +44,18 @@ const createRole = async (req, res) => {
     });
 
     await role.save();
+
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'create',
+      resource: 'role',
+      resourceId: role._id,
+      details: `Created role: ${name} with ${Object.keys(permissions || {}).length} permissions`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
     return successResponse(res, role, 'Role created successfully');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -70,6 +83,17 @@ const updateRole = async (req, res) => {
       return errorResponse(res, 'Role not found', 404);
     }
 
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'update',
+      resource: 'role',
+      resourceId: role._id,
+      details: `Updated role: ${name} with ${Object.keys(permissions || {}).length} permissions`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
     return successResponse(res, role, 'Role updated successfully');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -86,11 +110,24 @@ const deleteRole = async (req, res) => {
       return errorResponse(res, 'Cannot delete role. It is assigned to one or more admins.', 400);
     }
 
-    const role = await Role.findByIdAndDelete(id);
-    
+    const role = await Role.findById(id);
     if (!role) {
       return errorResponse(res, 'Role not found', 404);
     }
+
+    const roleName = role.name;
+    await Role.findByIdAndDelete(id);
+
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'delete',
+      resource: 'role',
+      resourceId: id,
+      details: `Deleted role: ${roleName}`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
 
     return successResponse(res, null, 'Role deleted successfully');
   } catch (err) {

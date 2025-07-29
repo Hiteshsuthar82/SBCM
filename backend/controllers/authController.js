@@ -139,7 +139,7 @@ const adminLogin = async (req, res) => {
   }
 };
 
-const adminRegester = async (req, res) => {
+const adminRegister = async (req, res) => {
   const { name, email, password, role } = req.body;
   try {
     // Check if admin already exists
@@ -351,4 +351,4 @@ const refreshToken = async (req, res) => {
   }
 };
 
-module.exports = { register, login, adminLogin, adminRegester, sendLoginOtp, verifyToken, refreshToken };
+module.exports = { register, login, adminLogin, adminRegister, sendLoginOtp, verifyToken, refreshToken };

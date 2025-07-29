@@ -246,7 +246,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/admin/users"
+          path={APP_ROUTES.ADMIN_USERS}
           element={
             <ProtectedRoute requireAdmin={true} permissions={["manageUsers"]}>
               <AdminUsers />
@@ -254,7 +254,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/admin/notifications"
+          path={APP_ROUTES.ADMIN_NOTIFICATIONS}
           element={
             <ProtectedRoute
               requireAdmin={true}
@@ -265,7 +265,7 @@ function AppContent() {
           }
         />
         <Route
-          path="/admin/reports"
+          path={APP_ROUTES.ADMIN_REPORTS}
           element={
             <ProtectedRoute requireAdmin={true} permissions={["viewReports"]}>
               <AdminReports />

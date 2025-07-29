@@ -93,9 +93,13 @@ export const apiRequest = async <T>(
 export const uploadFile = async (
   url: string,
   formData: FormData,
+  method: "POST" | "PUT" = "POST",
 ): Promise<any> => {
   try {
-    const response = await api.post(url, formData, {
+    const response = await api.request({
+      method,
+      url,
+      data: formData,
       headers: {
         "Content-Type": "multipart/form-data",
       },

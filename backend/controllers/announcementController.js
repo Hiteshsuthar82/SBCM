@@ -1,4 +1,5 @@
 const Announcement = require('../models/Announcement');
+const ActionHistory = require('../models/ActionHistory');
 const { successResponse, errorResponse } = require('../utils/responseUtil');
 
 const createAnnouncement = async (req, res) => {
@@ -14,6 +15,18 @@ const createAnnouncement = async (req, res) => {
       createdBy: req.user.id,
     });
     await announcement.save();
+
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'create',
+      resource: 'announcement',
+      resourceId: announcement._id,
+      details: `Created announcement: ${title}`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
     // Broadcast notification
     // For simplicity, notify all users; use topics in FCM for production
     return successResponse(res, announcement);
@@ -61,4 +74,77 @@ const likeAnnouncement = async (req, res) => {
   }
 };
 
-module.exports = { createAnnouncement, getAnnouncements, likeAnnouncement };
+const updateAnnouncement = async (req, res) => {
+  const { id } = req.params;
+  const { title, description, route, scheduledAt } = req.body;
+  const image = req.file ? req.file.path : undefined;
+  
+  try {
+    const announcement = await Announcement.findById(id);
+    if (!announcement) {
+      return errorResponse(res, 'Announcement not found', 404);
+    }
+
+    // Update fields
+    announcement.title = title || announcement.title;
+    announcement.description = description || announcement.description;
+    announcement.route = route || announcement.route;
+    announcement.scheduledAt = scheduledAt ? new Date(scheduledAt) : announcement.scheduledAt;
+    if (image) announcement.image = image;
+    announcement.updatedAt = new Date();
+
+    await announcement.save();
+
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'update',
+      resource: 'announcement',
+      resourceId: announcement._id,
+      details: `Updated announcement: ${announcement.title}`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    return successResponse(res, announcement);
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
+
+const deleteAnnouncement = async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const announcement = await Announcement.findById(id);
+    if (!announcement) {
+      return errorResponse(res, 'Announcement not found', 404);
+    }
+
+    const announcementTitle = announcement.title;
+    await Announcement.findByIdAndDelete(id);
+
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'delete',
+      resource: 'announcement',
+      resourceId: id,
+      details: `Deleted announcement: ${announcementTitle}`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    return successResponse(res, { message: 'Announcement deleted successfully' });
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
+
+module.exports = { 
+  createAnnouncement, 
+  getAnnouncements, 
+  likeAnnouncement, 
+  updateAnnouncement, 
+  deleteAnnouncement 
+};

@@ -1,8 +1,20 @@
 import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   Table,
   TableBody,
@@ -33,7 +45,7 @@ import {
 } from "@/components/ui/select";
 import Layout from "@/components/layout/Layout";
 import { User } from "@/lib/types";
-import { usersAPI } from "@/lib/services/api";
+import { usersAPI, notificationsAPI } from "@/lib/services/api";
 import { toast } from "@/hooks/use-toast";
 import {
   Search,
@@ -67,12 +79,36 @@ interface ExtendedUser extends User {
   stats: UserStats;
 }
 
+const notificationSchema = z.object({
+  title: z.string().min(1, "Title is required").max(100, "Title too long"),
+  message: z
+    .string()
+    .min(1, "Message is required")
+    .max(500, "Message too long"),
+  priority: z.enum(["low", "normal", "high"], {
+    required_error: "Please select priority",
+  }),
+  actionUrl: z.string().optional(),
+});
+
+type NotificationForm = z.infer<typeof notificationSchema>;
+
 export default function AdminUsers() {
   const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
+  const [isNotificationDialogOpen, setIsNotificationDialogOpen] = useState(false);
+  const [notificationTarget, setNotificationTarget] = useState<ExtendedUser | null>(null);
+  const [sendingNotification, setSendingNotification] = useState(false);
+
+  const notificationForm = useForm<NotificationForm>({
+    resolver: zodResolver(notificationSchema),
+    defaultValues: {
+      priority: "normal",
+    },
+  });
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -225,26 +261,38 @@ export default function AdminUsers() {
 
   const handleStatusChange = async (userId: string, newStatus: string) => {
     try {
+      let updatedUser;
       if (newStatus === "active") {
-        await usersAPI.activate(userId);
-      } else if (newStatus === "inactive") {
-        await usersAPI.deactivate(userId);
+        const response = await usersAPI.activate(userId);
+        updatedUser = response.data;
+      } else if (newStatus === "suspended") {
+        const response = await usersAPI.deactivate(userId);
+        updatedUser = response.data;
       } else {
-        // For suspended status, use update API
-        await usersAPI.update(userId, { status: newStatus });
+        // For other status updates, use update API
+        const response = await usersAPI.update(userId, { status: newStatus });
+        updatedUser = response.data;
       }
       
+      // Update the user in the local state with the actual response
       setUsers(
         users.map((user) =>
           user.id === userId
-            ? { ...user, stats: { ...user.stats, status: newStatus as any } }
+            ? { 
+                ...user, 
+                isActive: updatedUser.isActive,
+                stats: { 
+                  ...user.stats, 
+                  status: updatedUser.isActive ? "active" : "suspended"
+                } 
+              }
             : user,
         ),
       );
       
       toast({
         title: "Success",
-        description: `User status updated to ${newStatus}`,
+        description: `User status updated successfully`,
       });
     } catch (error: any) {
       toast({
@@ -252,6 +300,44 @@ export default function AdminUsers() {
         description: error.message || "Failed to update user status",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleSendNotification = (user: ExtendedUser) => {
+    setNotificationTarget(user);
+    setIsNotificationDialogOpen(true);
+    notificationForm.reset();
+  };
+
+  const onNotificationSubmit = async (data: NotificationForm) => {
+    if (!notificationTarget) return;
+
+    setSendingNotification(true);
+    try {
+      await notificationsAPI.send({
+        title: data.title,
+        message: data.message,
+        audience: "specific",
+        specificUsers: [notificationTarget.id],
+        priority: data.priority,
+        actionUrl: data.actionUrl,
+      });
+
+      toast({
+        title: "Notification Sent",
+        description: `Notification sent successfully to ${notificationTarget.name}`,
+      });
+
+      setIsNotificationDialogOpen(false);
+      notificationForm.reset();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send notification",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingNotification(false);
     }
   };
 
@@ -576,7 +662,7 @@ export default function AdminUsers() {
                               <Edit className="mr-2 h-4 w-4" />
                               Edit User
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSendNotification(user)}>
                               <Mail className="mr-2 h-4 w-4" />
                               Send Notification
                             </DropdownMenuItem>
@@ -601,6 +687,105 @@ export default function AdminUsers() {
             )}
           </CardContent>
         </Card>
+
+        {/* Send Notification Dialog */}
+        <Dialog open={isNotificationDialogOpen} onOpenChange={setIsNotificationDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                Send Notification to {notificationTarget?.name}
+              </DialogTitle>
+            </DialogHeader>
+            <Form {...notificationForm}>
+              <form
+                onSubmit={notificationForm.handleSubmit(onNotificationSubmit)}
+                className="space-y-4"
+              >
+                <FormField
+                  control={notificationForm.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Notification title" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={notificationForm.control}
+                  name="message"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Message</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Notification message"
+                          rows={3}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={notificationForm.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Priority</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select priority" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="normal">Normal</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={notificationForm.control}
+                  name="actionUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Action URL (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsNotificationDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={sendingNotification}>
+                    {sendingNotification ? "Sending..." : "Send Notification"}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

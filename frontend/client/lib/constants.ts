@@ -31,6 +31,7 @@ export const APP_ROUTES = {
   ADMIN_ROLES: "/admin/roles",
   ADMIN_USERS: "/admin/users",
   ADMIN_NOTIFICATIONS: "/admin/notifications",
+  ADMIN_REPORTS: "/admin/reports",
   ADMIN_HISTORY: "/admin/history",
   ADMIN_CONFIG: "/admin/config",
   ADMIN_ANALYTICS: "/admin/analytics",

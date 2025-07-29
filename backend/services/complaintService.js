@@ -25,18 +25,27 @@ const updateComplaintStatus = async (complaint, status, reason, description, adm
     resourceId: complaint._id,
     details: { status },
   });
-  // Notify user
-  const user = await User.findById(complaint.userId);
-  user.fcmTokens.forEach(({ token }) => sendNotification(token, 'Complaint Update', `Your complaint ${complaint.token} is now ${status}`));
-  // Real-time
-  global.io.to(complaint.userId.toString()).emit('complaintUpdate', complaint);
+  // Notify user (only if not anonymous)
+  if (complaint.userId) {
+    const user = await User.findById(complaint.userId);
+    if (user && user.fcmTokens) {
+      user.fcmTokens.forEach(({ token }) => sendNotification(token, 'Complaint Update', `Your complaint ${complaint.token} is now ${status}`));
+    }
+    // Real-time
+    if (global.io) {
+      global.io.to(complaint.userId.toString()).emit('complaintUpdate', complaint);
+    }
+  }
 };
 
 const approveComplaint = async (complaintId, points, userId) => {
   const complaint = await Complaint.findById(complaintId);
   complaint.points = points;
   await complaint.save();
-  await awardPoints(userId, points, 'complaint_approval', complaintId);
+  // Only award points if user exists (not anonymous)
+  if (userId) {
+    await awardPoints(userId, points, 'complaint_approval', complaintId);
+  }
 };
 
 module.exports = { updateComplaintStatus, approveComplaint };

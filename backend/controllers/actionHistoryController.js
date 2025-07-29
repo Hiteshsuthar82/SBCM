@@ -7,6 +7,7 @@ const getActionHistory = async (req, res) => {
     limit = 20, 
     adminId = '', 
     action = '', 
+    resource = '',
     startDate = '', 
     endDate = '' 
   } = req.query;
@@ -16,6 +17,7 @@ const getActionHistory = async (req, res) => {
     
     if (adminId) filter.adminId = adminId;
     if (action) filter.action = { $regex: action, $options: 'i' };
+    if (resource) filter.resource = { $regex: resource, $options: 'i' };
     
     if (startDate || endDate) {
       filter.createdAt = {};
@@ -29,6 +31,25 @@ const getActionHistory = async (req, res) => {
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
 
+    // Transform the data to match frontend expectations
+    const transformedActions = actions.map(action => ({
+      id: action._id,
+      adminId: action.adminId?._id,
+      adminName: action.adminId?.name || 'Unknown Admin',
+      adminRole: action.adminId?.role || 'Unknown',
+      action: action.action,
+      entity: action.resource, // Map resource to entity for frontend compatibility
+      entityId: action.resourceId,
+      timestamp: action.createdAt,
+      details: action.details,
+      ipAddress: action.ipAddress,
+      userAgent: action.userAgent,
+      performedBy: {
+        name: action.adminId?.name || 'Unknown Admin',
+        role: action.adminId?.role || 'Unknown'
+      }
+    }));
+
     const total = await ActionHistory.countDocuments(filter);
     const pagination = {
       page: parseInt(page),
@@ -37,7 +58,7 @@ const getActionHistory = async (req, res) => {
       totalPages: Math.ceil(total / limit)
     };
 
-    return successResponse(res, actions, '', pagination);
+    return successResponse(res, transformedActions, '', pagination);
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }

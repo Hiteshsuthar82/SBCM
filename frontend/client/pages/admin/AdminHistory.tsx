@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/popover";
 import { format } from "date-fns";
 import Layout from "@/components/layout/Layout";
-import { historyAPI } from "@/lib/services/api";
+import { actionHistoryAPI } from "@/lib/services/api";
 import {
   Search,
   History,
@@ -105,19 +105,20 @@ export default function AdminHistory() {
     const loadActionLogs = async () => {
       setLoading(true);
       try {
-        const response = await historyAPI.getActionLogs();
+        const response = await actionHistoryAPI.getAll();
         // Transform API response to match our interface
         const transformedLogs = response.data?.map((log: any) => ({
-          id: log._id || log.id,
+          id: log.id,
+          adminId: log.adminId,
+          adminName: log.adminName,
           action: log.action,
-          entity: log.entity,
-          entityId: log.entityId,
-          adminName: log.adminName || log.performedBy?.name,
-          adminRole: log.adminRole || log.performedBy?.role,
-          timestamp: log.timestamp || log.createdAt,
+          resource: log.entity, // Map entity to resource for compatibility
+          resourceId: log.entityId,
           details: log.details,
           ipAddress: log.ipAddress,
           userAgent: log.userAgent,
+          timestamp: log.timestamp,
+          status: "success", // Default status since API doesn't provide this
         })) || [];
         setActionLogs(transformedLogs);
       } catch (error) {

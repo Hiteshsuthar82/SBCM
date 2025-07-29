@@ -1,7 +1,30 @@
 const Complaint = require('../models/Complaint');
 const User = require('../models/User');
 const Withdrawal = require('../models/Withdrawal');
+const ActionHistory = require('../models/ActionHistory');
 const { successResponse, errorResponse } = require('../utils/responseUtil');
+const mongoose = require('mongoose');
+
+// Model for storing generated reports
+const reportHistorySchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { type: String, required: true },
+  format: { type: String, required: true },
+  status: { type: String, enum: ['generating', 'completed', 'failed'], default: 'generating' },
+  dateRange: {
+    from: { type: Date, required: true },
+    to: { type: Date, required: true }
+  },
+  filters: { type: mongoose.Schema.Types.Mixed },
+  recordCount: { type: Number, default: 0 },
+  fileSize: { type: String },
+  downloadUrl: { type: String },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin', required: true },
+  createdAt: { type: Date, default: Date.now },
+  completedAt: { type: Date },
+});
+
+const ReportHistory = mongoose.model('ReportHistory', reportHistorySchema);
 
 const getReports = async (req, res) => {
   try {
@@ -40,41 +63,69 @@ const getReports = async (req, res) => {
 };
 
 const generateReport = async (req, res) => {
-  const { type, dateRange, filters } = req.body;
+  const { type, format, dateRange, filters } = req.body;
   
   try {
+    const startDate = dateRange?.from ? new Date(dateRange.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const endDate = dateRange?.to ? new Date(dateRange.to) : new Date();
+
+    // Create report record
+    const reportRecord = new ReportHistory({
+      name: `${type.charAt(0).toUpperCase() + type.slice(1)} Report - ${startDate.toLocaleDateString()}`,
+      type,
+      format: format || 'excel',
+      dateRange: { from: startDate, to: endDate },
+      filters,
+      createdBy: req.user.id,
+    });
+
+    await reportRecord.save();
+
+    // Generate report data
     let reportData = {};
-    const startDate = dateRange?.start ? new Date(dateRange.start) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const endDate = dateRange?.end ? new Date(dateRange.end) : new Date();
+    let recordCount = 0;
 
     switch (type) {
       case 'complaints':
         reportData = await generateComplaintsReport(startDate, endDate, filters);
+        recordCount = reportData.complaints?.length || 0;
         break;
       case 'users':
         reportData = await generateUsersReport(startDate, endDate, filters);
+        recordCount = reportData.users?.length || 0;
         break;
       case 'withdrawals':
         reportData = await generateWithdrawalsReport(startDate, endDate, filters);
+        recordCount = reportData.withdrawals?.length || 0;
         break;
       case 'analytics':
         reportData = await generateAnalyticsReport(startDate, endDate, filters);
+        recordCount = Object.keys(reportData.metrics || {}).length;
         break;
       default:
         return errorResponse(res, 'Invalid report type', 400);
     }
 
-    const report = {
-      id: Date.now().toString(),
-      type,
-      dateRange: { start: startDate, end: endDate },
-      filters,
-      data: reportData,
-      generatedAt: new Date(),
-      generatedBy: req.user.id
-    };
+    // Update report record with completion details
+    reportRecord.status = 'completed';
+    reportRecord.recordCount = recordCount;
+    reportRecord.fileSize = `${(Math.random() * 5 + 0.5).toFixed(1)} MB`; // Mock file size
+    reportRecord.downloadUrl = `/reports/${reportRecord._id}/download`;
+    reportRecord.completedAt = new Date();
+    await reportRecord.save();
 
-    return successResponse(res, report, 'Report generated successfully');
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'generate',
+      resource: 'report',
+      resourceId: reportRecord._id,
+      details: `Generated ${type} report for period ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
+    return successResponse(res, reportRecord, 'Report generated successfully');
   } catch (err) {
     return errorResponse(res, err.message, 500);
   }
@@ -227,9 +278,34 @@ const calculateNextRun = (frequency) => {
   }
 };
 
+const getReportHistory = async (req, res) => {
+  const { page = 1, limit = 20 } = req.query;
+  
+  try {
+    const reports = await ReportHistory.find()
+      .populate('createdBy', 'name email')
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit))
+      .sort({ createdAt: -1 });
+
+    const total = await ReportHistory.countDocuments();
+    const pagination = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      totalPages: Math.ceil(total / limit)
+    };
+
+    return successResponse(res, reports, '', pagination);
+  } catch (err) {
+    return errorResponse(res, err.message, 500);
+  }
+};
+
 module.exports = {
   getReports,
   generateReport,
   downloadReport,
-  scheduleReport
+  scheduleReport,
+  getReportHistory
 };

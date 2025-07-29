@@ -49,6 +49,10 @@ export const announcementsAPI = {
 
   getAll: () => apiRequest("GET", "/announcements"),
 
+  update: (id: string, formData: FormData) => uploadFile(`/announcements/${id}`, formData, "PUT"),
+
+  delete: (id: string) => apiRequest("DELETE", `/announcements/${id}`),
+
   like: (id: string) => apiRequest("POST", `/announcements/${id}/like`),
 
   dislike: (id: string) => apiRequest("POST", `/announcements/${id}/dislike`),
@@ -111,9 +115,15 @@ export const notificationsAPI = {
     scheduleTime?: string;
   }) => apiRequest("POST", "/notifications/send", data),
 
-  getHistory: () => apiRequest("GET", "/notifications/history"),
+  getHistory: (params?: any) => apiRequest("GET", "/notifications/history", params),
   
   getTemplates: () => apiRequest("GET", "/notifications/templates"),
+  
+  createTemplate: (data: any) => apiRequest("POST", "/notifications/templates", data),
+  
+  updateTemplate: (id: string, data: any) => apiRequest("PUT", `/notifications/templates/${id}`, data),
+  
+  deleteTemplate: (id: string) => apiRequest("DELETE", `/notifications/templates/${id}`),
 };
 
 // Config API

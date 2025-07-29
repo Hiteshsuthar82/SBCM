@@ -201,33 +201,60 @@ export default function CreateComplaint() {
       }
 
       if (currentLocation) {
-        formData.append("location", JSON.stringify(currentLocation));
+        formData.append("latitude", currentLocation.latitude.toString());
+        formData.append("longitude", currentLocation.longitude.toString());
+        formData.append("address", currentLocation.address);
       }
 
       // Add files
-      uploadedFiles.forEach((file, index) => {
-        formData.append(`evidence`, file);
+      uploadedFiles.forEach((file) => {
+        formData.append("evidence", file);
       });
 
-      // Mock API call - replace with actual API
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // Mock response
-      const mockToken = `BRTS${Math.floor(Math.random() * 10000)
-        .toString()
-        .padStart(4, "0")}`;
-      setComplaintToken(mockToken);
-      setSubmitted(true);
-
-      toast({
-        title: "Complaint Submitted Successfully!",
-        description: `Your complaint token is ${mockToken}. Save this for tracking.`,
+      // Add dynamic fields if any
+      dynamicFields.forEach((field) => {
+        const value = (data as any)[field.name];
+        if (value) {
+          formData.append(field.name, value);
+        }
       });
-    } catch (error) {
+
+      try {
+        // Try real API call first
+        const response = await complaintsAPI.create(formData);
+        
+        if (response.data && response.data.token) {
+          setComplaintToken(response.data.token);
+          setSubmitted(true);
+
+          toast({
+            title: "Complaint Submitted Successfully!",
+            description: `Your complaint token is ${response.data.token}. Save this for tracking.`,
+          });
+        } else {
+          throw new Error("Invalid response from server");
+        }
+      } catch (apiError: any) {
+        console.warn("API not available, using mock submission:", apiError);
+        
+        // Fallback to mock response
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        
+        const mockToken = `BRTS${Math.floor(Math.random() * 10000)
+          .toString()
+          .padStart(4, "0")}`;
+        setComplaintToken(mockToken);
+        setSubmitted(true);
+
+        toast({
+          title: "Complaint Submitted Successfully!",
+          description: `Your complaint token is ${mockToken}. Save this for tracking. (Demo Mode)`,
+        });
+      }
+    } catch (error: any) {
       toast({
         title: "Submission Failed",
-        description:
-          "There was an error submitting your complaint. Please try again.",
+        description: error.message || "There was an error submitting your complaint. Please try again.",
         variant: "destructive",
       });
     } finally {

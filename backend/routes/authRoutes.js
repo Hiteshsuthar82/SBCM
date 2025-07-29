@@ -12,7 +12,7 @@ router.post('/login', authLimiter, loginValidation, authController.login);
 
 // Admin authentication routes
 router.post('/admin/login', authLimiter, adminLoginValidation, authController.adminLogin);
-router.post('/admin/regester', authLimiter, authController.adminRegester);
+router.post('/admin/register', authLimiter, authController.adminRegister);
 
 // Token management routes
 router.get('/verify', verifyToken, authController.verifyToken);

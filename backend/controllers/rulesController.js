@@ -1,4 +1,5 @@
 const Rule = require('../models/Rule');
+const ActionHistory = require('../models/ActionHistory');
 const { successResponse, errorResponse } = require('../utils/responseUtil');
 
 const getRules = async (req, res) => {
@@ -42,6 +43,17 @@ const createRule = async (req, res) => {
     await rule.save();
     await rule.populate('createdBy', 'name email');
 
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'create',
+      resource: 'rule',
+      resourceId: rule._id,
+      details: `Created rule in category "${category}": ${description.substring(0, 100)}...`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
     return successResponse(res, rule, 'Rule created successfully');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -63,6 +75,17 @@ const updateRule = async (req, res) => {
       return errorResponse(res, 'Rule not found', 404);
     }
 
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'update',
+      resource: 'rule',
+      resourceId: rule._id,
+      details: `Updated rule in category "${category}": ${description.substring(0, 100)}...`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
+
     return successResponse(res, rule, 'Rule updated successfully');
   } catch (err) {
     return errorResponse(res, err.message, 500);
@@ -73,11 +96,24 @@ const deleteRule = async (req, res) => {
   const { id } = req.params;
   
   try {
-    const rule = await Rule.findByIdAndDelete(id);
-    
+    const rule = await Rule.findById(id);
     if (!rule) {
       return errorResponse(res, 'Rule not found', 404);
     }
+
+    const ruleDetails = `${rule.category}: ${rule.description.substring(0, 100)}...`;
+    await Rule.findByIdAndDelete(id);
+
+    // Log action history
+    await ActionHistory.create({
+      adminId: req.user.id,
+      action: 'delete',
+      resource: 'rule',
+      resourceId: id,
+      details: `Deleted rule: ${ruleDetails}`,
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent'),
+    });
 
     return successResponse(res, null, 'Rule deleted successfully');
   } catch (err) {

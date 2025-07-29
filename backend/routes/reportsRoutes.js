@@ -6,6 +6,7 @@ const { reportValidation } = require('../middleware/validationMiddleware');
 
 // All routes require admin access
 router.get('/', verifyToken, isAdmin, reportsController.getReports);
+router.get('/history', verifyToken, isAdmin, reportsController.getReportHistory);
 router.post('/generate', verifyToken, isAdmin, reportValidation, reportsController.generateReport);
 router.get('/:id/download', verifyToken, isAdmin, reportsController.downloadReport);
 router.post('/schedule', verifyToken, isAdmin, reportsController.scheduleReport);

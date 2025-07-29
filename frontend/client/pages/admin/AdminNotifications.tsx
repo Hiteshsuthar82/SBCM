@@ -208,9 +208,10 @@ export default function AdminNotifications() {
           priority: notification.priority,
           status: notification.status,
           sentAt: notification.sentAt || notification.createdAt,
+          recipientCount: notification.recipientCount || 0,
           deliveredCount: notification.deliveredCount || 0,
-          readCount: notification.readCount || 0,
-          clickCount: notification.clickCount || 0,
+          openedCount: notification.readCount || 0,
+          createdBy: notification.createdBy?.name || 'System',
         })) || [];
         setNotifications(transformedNotifications);
 
@@ -223,6 +224,7 @@ export default function AdminNotifications() {
           message: template.message,
           category: template.category,
           createdAt: template.createdAt,
+          usageCount: template.usageCount || 0,
         })) || [];
         setTemplates(transformedTemplates);
 

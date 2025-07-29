@@ -12,4 +12,10 @@ const fileUploadLimiter = rateLimit({
   message: { success: false, error: 'Too many file uploads, please try again later.' },
 });
 
-module.exports = { authLimiter, fileUploadLimiter };
+const notificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 50, // 50 notifications per hour
+  message: { success: false, error: 'Too many notifications sent, please try again later.' },
+});
+
+module.exports = { authLimiter, fileUploadLimiter, notificationLimiter };
